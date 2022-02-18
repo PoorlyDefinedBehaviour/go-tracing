@@ -6,5 +6,5 @@ type Layer interface {
 	// Called when a span is exited.
 	OnSpanExit(span string)
 	// Called to log events.
-	OnEvent(event Event)
+	OnEvent(event *Event)
 }

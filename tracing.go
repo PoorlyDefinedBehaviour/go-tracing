@@ -8,7 +8,31 @@ import (
 	"github.com/google/uuid"
 )
 
-var subscriber Subscriber = &StdoutSubscriber{}
+type stdoutSubscriber struct{}
+
+func (subscriber *stdoutSubscriber) OnSpanEnter(span string) {
+	fmt.Printf("[START - %s]\n", span)
+}
+
+func (subscriber *stdoutSubscriber) OnSpanExit(span string) {
+	fmt.Printf("[END - %s]\n", span)
+}
+
+func (subscriber *stdoutSubscriber) OnEvent(event Event) {
+	if event.Span != nil {
+		fmt.Printf("[%s - %s] %s - %+v\n", event.Level.String(), event.Span.Name, event.Message, event.Fields)
+	} else {
+		fmt.Printf("[%s] %s - %+v\n", event.Level.String(), event.Message, event.Fields)
+	}
+}
+
+var subscriber Subscriber = &stdoutSubscriber{}
+var layers []Layer = make([]Layer, 0)
+
+// Sets the layers that will be called when events happen.
+func WithLayers(newLayers ...Layer) {
+	layers = newLayers
+}
 
 func SetSubscriber(sub Subscriber) {
 	subscriber = sub
@@ -65,9 +89,12 @@ func Of(ctx context.Context) *Tracer {
 func (tracer *Tracer) Span(name string) *Spanner {
 	tracer.mu.Lock()
 	defer tracer.mu.Unlock()
-	span := &Spanner{name: name, tracer: tracer}
+	span := &Spanner{Name: name, tracer: tracer}
 	tracer.spans = append(tracer.spans, span)
 	tracer.ctx.addTracerToContext(tracer)
+	for _, layer := range layers {
+		layer.OnSpanEnter(name)
+	}
 	subscriber.OnSpanEnter(name)
 	return span
 }
@@ -95,6 +122,10 @@ func (tracer *Tracer) onSpanExit(spanner *Spanner) {
 	tracer.mu.Lock()
 	defer tracer.mu.Unlock()
 
+	for _, layer := range layers {
+		layer.OnSpanExit(spanner.Name)
+	}
+
 	// The fields that belong to the span that is exiting won't be used anymore.
 	tracer.removeFields(spanner.fields)
 
@@ -106,7 +137,7 @@ func (tracer *Tracer) onSpanExit(spanner *Spanner) {
 	}
 
 	// Let the subscriber know the span exited
-	subscriber.OnSpanExit(spanner.name)
+	subscriber.OnSpanExit(spanner.Name)
 
 	for i := len(tracer.spans) - 1; i > -1; i-- {
 		// If we found the span we want to remove.
@@ -137,6 +168,10 @@ func (tracer *Tracer) sendEventToSubscriber(level EventLevel, format string, val
 		Fields:  tracer.fields,
 		Span:    tracer.currentSpan(),
 		Message: fmt.Sprintf(format, values...),
+	}
+
+	for _, layer := range layers {
+		layer.OnEvent(&event)
 	}
 
 	subscriber.OnEvent(event)

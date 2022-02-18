@@ -1,7 +1,7 @@
 package tracing
 
 type Spanner struct {
-	name string
+	Name string
 	// The `Tracer` that created this span.
 	tracer *Tracer
 	fields Fields
@@ -13,7 +13,7 @@ func (spanner *Spanner) Fields(fields Fields) *Spanner {
 	spanner.tracer.Fields(fields)
 
 	return &Spanner{
-		name:   spanner.name,
+		Name:   spanner.Name,
 		tracer: *&spanner.tracer,
 		fields: fields,
 	}
