@@ -9,13 +9,26 @@ import (
 func main() {
 	ctx := tracing.WrapContext(context.Background())
 
-	defer tracing.Of(ctx).
-		Span("My Span Name").
-		Fields(tracing.Fields{"request_id": 1}).
-		End()
+	span1 := tracing.Of(ctx).
+		Span("Span 1").
+		Fields(tracing.Fields{"key_a": 1})
 
-	tracing.Of(ctx).Fields(tracing.Fields{"hello": "world"}).Info("hello world")
-	// [START - My Span Name]
-	// [INFO - My Span Name] hello world - map[hello:world request_id:1]
-	// [END - My Span Name]
+	span2 := tracing.Of(ctx).
+		Span("Span 2").
+		Fields(tracing.Fields{"key_b": 1})
+
+	tracing.Of(ctx).Info("AAA")
+
+	span1.End()
+
+	tracing.Of(ctx).Info("BBB")
+
+	span2.End()
+
+	// [START - Span 1]
+	// [START - Span 2]
+	// [INFO - Span 2] AAA - map[key_a:1 key_b:1]
+	// [END - Span 1]
+	// [INFO - Span 2] BBB - map[key_b:1]
+	// [END - Span 2]
 }

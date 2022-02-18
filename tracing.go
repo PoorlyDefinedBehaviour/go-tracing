@@ -65,8 +65,7 @@ func Of(ctx context.Context) *Tracer {
 func (tracer *Tracer) Span(name string) *Spanner {
 	tracer.mu.Lock()
 	defer tracer.mu.Unlock()
-	spanIndex := len(tracer.spans)
-	span := &Spanner{name: name, index: spanIndex, tracer: tracer}
+	span := &Spanner{name: name, tracer: tracer}
 	tracer.spans = append(tracer.spans, span)
 	tracer.ctx.addTracerToContext(tracer)
 	subscriber.OnSpanEnter(name)
@@ -82,25 +81,41 @@ func (tracer *Tracer) Fields(fields Fields) *Tracer {
 	return tracer
 }
 
+// Removes `fields` from the tracer fields.
+func (tracer *Tracer) removeFields(fields Fields) *Tracer {
+	for key := range fields {
+		delete(tracer.fields, key)
+	}
+
+	return tracer
+}
+
 // Called when a span exits.
 func (tracer *Tracer) onSpanExit(spanner *Spanner) {
 	tracer.mu.Lock()
 	defer tracer.mu.Unlock()
 
+	// The fields that belong to the span that is exiting won't be used anymore.
+	tracer.removeFields(spanner.fields)
+
+	// If the tracer has a previous span.
+	if len(tracer.spans) > 1 {
+		previousSpan := tracer.spans[len(tracer.spans)-2]
+		// Add the previous span fields back.
+		tracer.Fields(previousSpan.fields)
+	}
+
 	// Let the subscriber know the span exited
 	subscriber.OnSpanExit(spanner.name)
 
-	// If the last span exited, we can make this fast
-	// by just removing the last element from the slice.
-	// This will be the hot path.
-	if spanner.index == len(tracer.spans)-1 {
-		tracer.spans = tracer.spans[:len(tracer.spans)-1]
-		return
+	for i := len(tracer.spans) - 1; i > -1; i-- {
+		// If we found the span we want to remove.
+		if tracer.spans[i] == spanner {
+			// Remove it from the list of spans.
+			tracer.spans = append(tracer.spans[:i], tracer.spans[i+1:]...)
+			break
+		}
 	}
-
-	// If a span that's in the middle of the list just exited,
-	// we take the slow path.
-	tracer.spans = append(tracer.spans[:spanner.index], tracer.spans[spanner.index+1:]...)
 }
 
 // Returns the newest span.

@@ -2,8 +2,6 @@ package tracing
 
 type Spanner struct {
 	name string
-	// The index of the spanner in `Tracer.spans`
-	index int
 	// The `Tracer` that created this span.
 	tracer *Tracer
 	fields Fields
@@ -16,7 +14,6 @@ func (spanner *Spanner) Fields(fields Fields) *Spanner {
 
 	return &Spanner{
 		name:   spanner.name,
-		index:  spanner.index,
 		tracer: *&spanner.tracer,
 		fields: fields,
 	}
